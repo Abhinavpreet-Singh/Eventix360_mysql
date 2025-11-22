@@ -1,40 +1,72 @@
-# 🚀 Eventix
+# Eventix360
 
-[![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/) 
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/) 
-[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/) 
-[![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
-[![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
+A web app for managing college events, clubs, and registrations. Allows clubs
+and admins to create/manage events, students to browse and register.
 
----
+## Problem Context
 
-## 🌟 Overview
+- Scattered announcements across multiple channels.
+- Manual registrations causing duplication.
+- Lack of centralized records and oversight.
 
-**Eventix** is a next-gen web app for students to **discover, track, and stay updated** on all college events, hackathons, workshops, interviews, and club activities. Eventix makes event exploration **fun, organized, and super easy**!  
+## Vision of the System
 
-Check out the cool features below 👇
+- Unified platform for students to browse/register, clubs to manage events, and
+  admins to oversee operations.
+- Relational database ensuring consistency, integrity, and security.
 
----
+## Core Objectives
 
-## 🛠️ Features
+- Centralized event portal with role-based access.
+- Secure registrations and feedback collection.
+- Normalized database supporting efficient querying and transactions.
 
-- 🎯 **Event Listings:** Browse all upcoming college events with images and details  
-- 🔍 **Search & Filter:** Quickly find events by category, date, or club  
-- 📅 **Event Calendar:** View events in calendar format (future feature)  
-- 📱 **Responsive Design:** Mobile-friendly UI using TailwindCSS  
-- 📝 **Admin Panel:** Add, update, delete events (optional backend)  
-- ✨ **Animated UI Effects:** Smooth hover, card animations, and transitions  
-- 🔔 **Notifications (Planned):** Get alerts for upcoming events  
+## System Users and Roles
 
----
+- **Students**: Browse, register, provide feedback.
+- **Clubs**: Create/manage events, view registrations/feedback.
+- **Super Admins**: Oversee clubs, categories, and system data.
 
-## 💻 Tech Stack
+## System Modules and Features
 
-- **Frontend:** React.js + TailwindCSS  
-- **Backend:** Node.js + Express.js  
-- **Database:** MySQL  
-- **API Calls:** Axios  
-- **Routing:** React Router DOM  
+- **Event Management**: CRUD operations with details and media.
+- **Registration**: Automated confirmations and participant lists.
+- **Feedback**: Ratings/comments linked to users/events.
+- **Categories**: Predefined groupings (Tech, Cultural, etc.).
+- **Payments**: Transaction simulation.
+- **Logging**: Trigger-based activity tracking.
 
----
+## Database Design Philosophy
 
+- Relational model with entities (Users, Clubs, Events, etc.) and relationships.
+- Normalization to BCNF, foreign keys, constraints, and triggers.
+- 9 normalized tables with transaction support.
+
+## Scope of the Project
+
+- End-to-end event workflows from creation to feedback.
+- Demonstrates DDL/DML, joins, views, procedures, triggers, and security.
+
+## Team Contribution Summary
+
+- **Abhinavpreet Singh Arora**: Schema, normalization, triggers, ER modeling.
+- **Dhruv Kumar Aggarwal**: Use cases, advanced queries, procedures.
+- **Pratham Mittal**: Optimization, payments, reports.
+
+## Tech Stack
+
+- Frontend: React, Vite, TailwindCSS, Axios
+- Backend: Node.js, Express, MySQL, JWT, bcrypt
+- Database: MySQL
+
+## Quick Start
+
+1. Install: `cd Backend; npm install; cd ..; npm install`
+2. Setup DB: Apply `Backend/src/eventix.sql`
+3. Run: Backend `cd Backend; npm run dev`, Frontend `npm run dev`
+
+## Conclusion
+
+Eventix 360 is a scalable event management platform with strong DBMS
+foundations, enabling efficient operations and demonstrating advanced database
+concepts.
