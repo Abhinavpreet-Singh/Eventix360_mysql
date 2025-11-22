@@ -51,8 +51,18 @@ const EventDetails = () => {
         )}
 
         <h1 className="mt-4 text-2xl font-bold">{event.event_title}</h1>
-        <div className="mt-2 text-sm text-zinc-600">
-          {date ? date.toLocaleString() : ""} • {event.event_location}
+        <div className="mt-2 text-sm text-zinc-600 flex items-center gap-3">
+          <span>{date ? date.toLocaleString() : ""}</span>
+          <span>•</span>
+          <span>{event.event_location}</span>
+          {event.category_name && (
+            <>
+              <span>•</span>
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                {event.category_name}
+              </span>
+            </>
+          )}
         </div>
         <div className="mt-4 text-zinc-800">
           <h3 className="font-semibold">About</h3>
@@ -93,7 +103,8 @@ const EventDetails = () => {
         )}
 
         <div className="mt-6 text-sm text-zinc-500">
-          Organized by: {event.club_name || event.club_id}
+          Organized by:{" "}
+          {event.club_name || event.club_id || "Unknown organizer"}
         </div>
       </div>
     </div>

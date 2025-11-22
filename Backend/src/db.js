@@ -69,7 +69,7 @@ export async function initDatabase() {
             event_date DATETIME,
             club_id VARCHAR(100),
             event_location VARCHAR(255),
-            category_id VARCHAR(100),
+            category_id INT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -221,20 +221,15 @@ export async function initDatabase() {
   // Create event_cards table for compatibility (if not present)
   await pool.query(`
           CREATE TABLE IF NOT EXISTS event_cards (
-            event_card_id INT PRIMARY KEY AUTO_INCREMENT,
-            event_id INT NOT NULL UNIQUE,
+            event_id INT PRIMARY KEY,
             event_title VARCHAR(100) NOT NULL,
             event_date DATE NOT NULL,
             event_location VARCHAR(100) NOT NULL,
             image_url VARCHAR(255),
             event_description TEXT,
-            brochure_url VARCHAR(255),
-            event_schedule TEXT,
-            terms TEXT,
             club_id INT NOT NULL,
             category_id INT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
             FOREIGN KEY (club_id) REFERENCES clubs(club_id) ON DELETE CASCADE,
             FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
@@ -359,10 +354,21 @@ export async function initDatabase() {
       "SHOW COLUMNS FROM events LIKE 'category_id'"
     );
     if (categoryIdColumns.length === 0) {
-      await pool.query(
-        `ALTER TABLE events ADD COLUMN category_id VARCHAR(100);`
-      );
+      await pool.query(`ALTER TABLE events ADD COLUMN category_id INT NULL;`);
       console.log("Added category_id column to events table");
+    } else {
+      // If column exists but is VARCHAR, convert to INT
+      const columnInfo = categoryIdColumns[0];
+      if (columnInfo.Type && columnInfo.Type.includes("varchar")) {
+        try {
+          await pool.query(
+            `ALTER TABLE events MODIFY COLUMN category_id INT NULL;`
+          );
+          console.log("Converted category_id column from VARCHAR to INT");
+        } catch (err) {
+          console.log("Could not convert category_id column:", err.message);
+        }
+      }
     }
 
     // Update legacy columns to allow NULL values
@@ -695,6 +701,68 @@ export async function initDatabase() {
     }
   } catch (error) {
     console.log("Error removing legacy columns:", error.message);
+  }
+
+  // Sync existing events to event_cards table (populate missing event_card entries)
+  try {
+    const [existingEvents] = await pool.query(
+      `SELECT id, event_title, event_date, event_location, image_url, club_id, category_id 
+       FROM events 
+       WHERE event_title IS NOT NULL AND event_date IS NOT NULL AND category_id IS NOT NULL`
+    );
+
+    for (const ev of existingEvents) {
+      try {
+        // Check if event_card already exists for this event
+        const [cardExists] = await pool.query(
+          "SELECT event_id FROM event_cards WHERE event_id = ?",
+          [ev.id]
+        );
+
+        if (Array.isArray(cardExists) && cardExists.length === 0) {
+          // Extract description from event_details if available
+          let description = null;
+          try {
+            const [details] = await pool.query(
+              "SELECT event_description FROM event_details WHERE event_id = ?",
+              [ev.id]
+            );
+            if (Array.isArray(details) && details[0]) {
+              description = details[0].event_description;
+            }
+          } catch {
+            // Ignore if event_details doesn't exist
+          }
+
+          // Convert datetime to date format if needed
+          const eventDate = ev.event_date
+            ? new Date(ev.event_date).toISOString().split("T")[0]
+            : null;
+
+          // Insert missing event_card
+          await pool.query(
+            `INSERT INTO event_cards (event_id, event_title, event_date, event_location, image_url, event_description, club_id, category_id) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              ev.id,
+              ev.event_title,
+              eventDate,
+              ev.event_location,
+              ev.image_url || null,
+              description || null,
+              ev.club_id,
+              ev.category_id,
+            ]
+          );
+          console.log(`Synced event ${ev.id} to event_cards`);
+        }
+      } catch (innerErr) {
+        console.log(`Could not sync event ${ev.id}:`, innerErr.message);
+      }
+    }
+    console.log("Event cards sync completed");
+  } catch (error) {
+    console.log("Event cards sync failed or skipped:", error.message);
   }
 }
 

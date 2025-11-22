@@ -168,7 +168,7 @@ const Dashboard = () => {
   };
 
   const handleEdit = (ev) => {
-    setEditingId(ev.id);
+    setEditingId(ev.event_id);
     setForm({
       event_title: ev.event_title || "",
       event_date: ev.event_date
@@ -405,13 +405,13 @@ const Dashboard = () => {
               <ul className="space-y-3">
                 {events.map((ev) => (
                   <li
-                    key={ev.id}
+                    key={ev.event_id}
                     className="flex items-start gap-4 border-b pb-3"
                   >
                     <img
                       src={
                         ev.image_url ||
-                        `https://picsum.photos/seed/${ev.id}/120/80`
+                        `https://picsum.photos/seed/${ev.event_id}/120/80`
                       }
                       alt={ev.event_title}
                       className="w-32 h-20 object-cover rounded-md"
@@ -430,7 +430,7 @@ const Dashboard = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <a
-                            href={`/events/${ev.id}`}
+                            href={`/events/${ev.event_id}`}
                             className="text-sm text-indigo-600 hover:underline"
                           >
                             View
@@ -442,7 +442,7 @@ const Dashboard = () => {
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(ev.id)}
+                            onClick={() => handleDelete(ev.event_id)}
                             className="text-sm text-red-600 hover:underline"
                           >
                             Delete

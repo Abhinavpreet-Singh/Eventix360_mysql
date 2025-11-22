@@ -40,6 +40,7 @@ CREATE TABLE event_cards (
     event_title VARCHAR(100) NOT NULL,
     event_date DATE NOT NULL,
     event_location VARCHAR(100) NOT NULL,
+    event_description TEXT NOT NULL,
     image_url VARCHAR(255),
     club_id INT NOT NULL,
     category_id INT NOT NULL,
@@ -47,16 +48,6 @@ CREATE TABLE event_cards (
     FOREIGN KEY (club_id) REFERENCES clubs(club_id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
 );
-
-CREATE TABLE event_details (
-    event_id INT PRIMARY KEY,
-    event_description TEXT NOT NULL,
-    brochure_url VARCHAR(255),
-    event_schedule TEXT,
-    terms TEXT,
-    FOREIGN KEY (event_id) REFERENCES event_cards(event_id) ON DELETE CASCADE
-);
-
 
 CREATE TABLE registrations (
     registration_id INT PRIMARY KEY AUTO_INCREMENT,

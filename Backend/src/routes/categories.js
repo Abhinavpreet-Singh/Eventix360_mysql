@@ -12,7 +12,7 @@ router.get("/", async (req, res) => {
     const [rows] = await pool.query(
       "SELECT category_id, category_name, category_description FROM categories ORDER BY category_name"
     );
-    res.json(rows);
+    res.json({ categories: rows });
   } catch (error) {
     console.error("Error fetching categories:", error);
     res.status(500).json({ error: "Failed to fetch categories" });

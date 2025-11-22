@@ -8,17 +8,15 @@ const EventsSection = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await axios.get("/api/events/cards/all");
-        setEvents(res.data.eventCards || []);
+        // Try cards/all first, but have robust fallback
+        const res = await axios.get("/api/events/cards/all").catch(async () => {
+          // If cards/all fails, use regular events endpoint
+          return await axios.get("/api/events");
+        });
+        setEvents(res.data.eventCards || res.data.events || []);
       } catch (error) {
         console.error("Error fetching events:", error);
-        // Fallback to regular events endpoint
-        try {
-          const fallbackRes = await axios.get("/api/events");
-          setEvents(fallbackRes.data.events || []);
-        } catch (fallbackError) {
-          console.error("Error fetching events (fallback):", fallbackError);
-        }
+        setEvents([]);
       }
     };
     fetchEvents();
@@ -43,9 +41,11 @@ const EventsSection = () => {
         </a>
       </div>
       <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-        {events.map((ev) => (
-          <EventCard key={ev.id || ev.public_id} event={ev} />
-        ))}
+        {events.map((ev) => {
+          const eventId =
+            ev.event_id !== undefined ? ev.event_id : ev.id || ev.public_id;
+          return <EventCard key={eventId} event={ev} />;
+        })}
       </section>
     </section>
   );

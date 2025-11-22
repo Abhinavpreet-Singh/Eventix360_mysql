@@ -7,6 +7,7 @@ import { initDatabase } from "./db.js";
 import authRouter from "./routes/auth.js";
 import eventsRouter from "./routes/events.js";
 import clubsRouter from "./routes/clubs.js";
+import categoriesRouter from "./routes/categories.js";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/clubs", clubsRouter);
+app.use("/api/categories", categoriesRouter);
 
 async function start() {
   try {

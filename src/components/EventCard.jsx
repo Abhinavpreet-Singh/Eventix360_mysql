@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 
 const EventCard = ({ event }) => {
   const date = event.event_date ? new Date(event.event_date) : null;
-  const eventId = event.id || event.event_id || event.public_id;
+  // Use event_id from event_cards table, fallback to id for regular events
+  // This is the database ID used to fetch event details
+  const eventId =
+    event.event_id !== undefined ? event.event_id : event.id || event.public_id;
 
   return (
     <div className="group flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
