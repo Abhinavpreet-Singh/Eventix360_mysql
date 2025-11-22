@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { Link } from "react-router-dom";
 
 const Clubs = () => {
   const [clubs, setClubs] = useState([]);
@@ -8,7 +9,17 @@ const Clubs = () => {
     const fetchClubs = async () => {
       try {
         const res = await axios.get("/api/clubs");
-        setClubs(res.data.clubs || []);
+        const clubsData = res.data.clubs || [];
+        // fetch events to calculate counts
+        const evRes = await axios.get("/api/events");
+        const allEvents = evRes.data.events || [];
+        const clubsWithCount = clubsData.map((c) => ({
+          ...c,
+          event_count: allEvents.filter(
+            (e) => String(e.club_id) === String(c.club_id)
+          ).length,
+        }));
+        setClubs(clubsWithCount);
       } catch (err) {
         console.error("Error fetching clubs:", err);
       }
@@ -37,7 +48,24 @@ const Clubs = () => {
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               {club.club_description}
             </p>
-            <p className="text-xs text-zinc-500 mt-2">{club.club_email}</p>
+            <p className="text-xs text-zinc-500 mt-2">
+              {club.club_email} • {club.event_count ?? 0} events
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <Link
+                to={`/clubs/${club.club_id}`}
+                className="text-indigo-600 hover:underline text-sm"
+              >
+                View Club
+              </Link>
+              {/* Sign-up link removed per request; only club login is provided here */}
+              <Link
+                to="/auth/login?type=club"
+                className="text-sm text-indigo-600 hover:underline"
+              >
+                Club login
+              </Link>
+            </div>
           </div>
         ))}
       </div>

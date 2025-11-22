@@ -46,6 +46,13 @@ async function seed() {
       club_password: "music123",
       club_description: "Performances, jams and music workshops.",
     },
+    {
+      club_name: "DEBSOC",
+      club_email: "debsoc@chitkara.edu.in",
+      club_password: "debsoc@123",
+      club_description:
+        "Debating Society - debates, public speaking and quizzes.",
+    },
   ];
 
   const clubMap = {};

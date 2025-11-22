@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
-  const [loginType, setLoginType] = useState("user");
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const initialType = params.get("type") === "club" ? "club" : "user";
+  const [loginType, setLoginType] = useState(initialType);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 

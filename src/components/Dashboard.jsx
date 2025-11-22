@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
+import { Link } from "react-router-dom";
 
 const apiBase = ""; // relative path (vite proxy)
 
@@ -392,20 +393,34 @@ const Dashboard = () => {
               <p className="text-sm text-slate-500">No clubs found.</p>
             ) : (
               <ul className="space-y-2">
-                {clubs.map((c) => (
-                  <li
-                    key={c.club_id}
-                    className="flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                        {c.club_name}
-                      </p>
-                      <p className="text-xs text-slate-500">ID: {c.club_id}</p>
-                    </div>
-                    <div className="text-sm text-indigo-600">View</div>
-                  </li>
-                ))}
+                {clubs.map((c) => {
+                  const count = events.filter(
+                    (e) => String(e.club_id) === String(c.club_id)
+                  ).length;
+                  return (
+                    <li
+                      key={c.club_id}
+                      className="flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                          {c.club_name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          ID: {c.club_id} • {count} events
+                        </p>
+                      </div>
+                      <div>
+                        <Link
+                          to={`/clubs/${c.club_id}`}
+                          className="text-sm text-indigo-600 hover:underline"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </aside>
