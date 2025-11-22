@@ -1,43 +1,54 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { v4 as uuidv4 } from "uuid";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [loginType, setLoginType] = useState("user");
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (
-      formData.email === "admin@gmail.com" &&
-      formData.password === "admin@123"
-    ) {
-      localStorage.setItem("admin_token", uuidv4());
-      navigate("/admin");
-    } else {
-      try {
-        setError("");
+    try {
+      setError("");
 
-        const res = await axios.post("/api/auth/login", formData, {
-          headers: { "Content-Type": "application/json" },
-        });
-        console.log(res);
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("name", res.data.user.name);
-        console.log("Login Success");
-        navigate("/");
+      // Prepare payload; send `as: 'club'` when logging in as a club
+      const payload = { email: formData.email, password: formData.password };
+      if (loginType === "club") payload.as = "club";
 
-        setFormData({ email: "", password: "" });
+      const res = await axios.post("/api/auth/login", payload, {
+        headers: { "Content-Type": "application/json" },
+      });
 
-        window.location.reload();
-      } catch (err) {
-        console.log(err);
-        const msg = err?.response?.data?.error || "Failed to login";
-        setError(msg);
+      // store token
+      localStorage.setItem("token", res.data.token);
+      const userOrClub = res.data.user || res.data.club;
+      if (userOrClub?.name) localStorage.setItem("name", userOrClub.name);
+      if (res.data.user) {
+        localStorage.setItem("userId", String(res.data.user.id));
       }
+      if (res.data.club) {
+        localStorage.setItem("clubId", String(res.data.club.id));
+      }
+
+      // navigate based on role if provided
+      const role =
+        res.data.user?.role || (loginType === "club" ? "club" : undefined);
+      if (role) localStorage.setItem("role", role);
+      if (role === "superadmin") {
+        navigate("/admin");
+      } else {
+        navigate("/");
+      }
+
+      setFormData({ email: "", password: "" });
+      window.location.reload();
+    } catch (err) {
+      console.log(err);
+      const msg = err?.response?.data?.error || "Failed to login";
+      setError(msg);
     }
   };
 
@@ -72,6 +83,23 @@ const Login = () => {
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-600"
               placeholder="you@college.edu"
             />
+          </div>
+          <div>
+            <label
+              className="mb-1 block text-sm font-medium text-zinc-200"
+              htmlFor="type"
+            >
+              Login as
+            </label>
+            <select
+              id="type"
+              value={loginType}
+              onChange={(e) => setLoginType(e.target.value)}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-zinc-100 outline-none"
+            >
+              <option value="user">User</option>
+              <option value="club">Club</option>
+            </select>
           </div>
           <div>
             <label

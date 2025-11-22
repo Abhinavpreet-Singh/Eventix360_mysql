@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getPool } from "../db.js";
+import authMiddleware from "../middleware/auth.js";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ const eventSchema = z.object({
 });
 
 // Create a new event
-router.post("/", async (req, res) => {
+router.post("/", authMiddleware, async (req, res) => {
   console.log("Received payload:", req.body);
   console.log("Payload type:", typeof req.body);
   console.log("Payload keys:", Object.keys(req.body));
@@ -39,7 +40,7 @@ router.post("/", async (req, res) => {
     });
   }
 
-  const {
+  let {
     title,
     image_url,
     event_title,
@@ -67,6 +68,22 @@ router.post("/", async (req, res) => {
 
   try {
     const pool = getPool();
+
+    // Authorization: only club users and superadmin can create events
+    const role = req.user?.role;
+    if (role !== "club" && role !== "superadmin") {
+      return res.status(403).json({ error: "Forbidden: cannot create events" });
+    }
+
+    // If club, force club_id to the authenticated club id
+    if (role === "club") {
+      club_id = String(
+        req.user.clubId ||
+          req.user.club_id ||
+          req.user.clubID ||
+          req.user.clubid
+      );
+    }
 
     // Convert event_date string to proper datetime format
     const eventDateTime = new Date(event_date);
@@ -150,6 +167,40 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get events for current authenticated user/club or all for superadmin
+router.get("/mine", authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    const role = req.user?.role;
+    if (role === "club") {
+      const clubId = req.user.clubId || req.user.club_id || req.user.clubId;
+      const [rows] = await pool.query(
+        `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
+         FROM events e
+         LEFT JOIN event_details d ON e.id = d.event_id
+         LEFT JOIN clubs c ON e.club_id = c.club_id
+         WHERE e.club_id = ?
+         ORDER BY e.event_date ASC`,
+        [String(clubId)]
+      );
+      return res.json({ events: rows });
+    }
+
+    // superadmin or other roles with access -> return all
+    const [rows] = await pool.query(
+      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
+       FROM events e
+       LEFT JOIN event_details d ON e.id = d.event_id
+       LEFT JOIN clubs c ON e.club_id = c.club_id
+       ORDER BY e.event_date ASC`
+    );
+    return res.json({ events: rows });
+  } catch (error) {
+    console.error("Get my events error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Get a specific event by ID
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
@@ -181,7 +232,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // Update an event
-router.put("/:id", async (req, res) => {
+router.put("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
 
   if (!id || isNaN(parseInt(id))) {
@@ -205,17 +256,35 @@ router.put("/:id", async (req, res) => {
     club_id,
     event_location,
     category_id,
+    event_description,
+    brochure_url,
+    event_schedule,
+    terms,
   } = parseResult.data;
 
   try {
     const pool = getPool();
-
     // Check if event exists
-    const [existing] = await pool.query("SELECT id FROM events WHERE id = ?", [
+    const [existing] = await pool.query("SELECT * FROM events WHERE id = ?", [
       id,
     ]);
     if (existing.length === 0) {
       return res.status(404).json({ error: "Event not found" });
+    }
+
+    // Authorization: only superadmin or owning club can update
+    const role = req.user?.role;
+    if (role === "club") {
+      const clubId = String(
+        req.user.clubId || req.user.club_id || req.user.clubId
+      );
+      if (String(existing[0].club_id) !== clubId) {
+        return res
+          .status(403)
+          .json({ error: "Forbidden: cannot update this event" });
+      }
+    } else if (role !== "superadmin") {
+      return res.status(403).json({ error: "Forbidden: cannot update events" });
     }
 
     // Convert event_date string to proper datetime format
@@ -249,7 +318,48 @@ router.put("/:id", async (req, res) => {
     );
 
     // Fetch the updated event
-    const [rows] = await pool.query("SELECT * FROM events WHERE id = ?", [id]);
+    // Upsert event_details
+    try {
+      const [exists] = await pool.query(
+        "SELECT event_id FROM event_details WHERE event_id = ? LIMIT 1",
+        [id]
+      );
+      if (Array.isArray(exists) && exists.length > 0) {
+        await pool.query(
+          `UPDATE event_details SET event_description = ?, brochure_url = ?, event_schedule = ?, terms = ? WHERE event_id = ?`,
+          [
+            event_description || null,
+            brochure_url || null,
+            event_schedule || null,
+            terms || null,
+            id,
+          ]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO event_details (event_id, event_description, brochure_url, event_schedule, terms) VALUES (?, ?, ?, ?, ?)`,
+          [
+            id,
+            event_description || null,
+            brochure_url || null,
+            event_schedule || null,
+            terms || null,
+          ]
+        );
+      }
+    } catch (err) {
+      console.warn("Could not upsert event_details:", err.message);
+    }
+
+    // Return joined event with details
+    const [rows] = await pool.query(
+      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
+       FROM events e
+       LEFT JOIN event_details d ON e.id = d.event_id
+       LEFT JOIN clubs c ON e.club_id = c.club_id
+       WHERE e.id = ? LIMIT 1`,
+      [id]
+    );
 
     return res.json({
       message: "Event updated successfully",
@@ -262,7 +372,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // Delete an event
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
 
   if (!id || isNaN(parseInt(id))) {
@@ -273,11 +383,26 @@ router.delete("/:id", async (req, res) => {
     const pool = getPool();
 
     // Check if event exists
-    const [existing] = await pool.query("SELECT id FROM events WHERE id = ?", [
+    const [existing] = await pool.query("SELECT * FROM events WHERE id = ?", [
       id,
     ]);
     if (existing.length === 0) {
       return res.status(404).json({ error: "Event not found" });
+    }
+
+    // Authorization: only superadmin or owning club can delete
+    const role = req.user?.role;
+    if (role === "club") {
+      const clubId = String(
+        req.user.clubId || req.user.club_id || req.user.clubId
+      );
+      if (String(existing[0].club_id) !== clubId) {
+        return res
+          .status(403)
+          .json({ error: "Forbidden: cannot delete this event" });
+      }
+    } else if (role !== "superadmin") {
+      return res.status(403).json({ error: "Forbidden: cannot delete events" });
     }
 
     // Delete the event

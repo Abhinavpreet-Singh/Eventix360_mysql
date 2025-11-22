@@ -2,6 +2,7 @@
 /* global process */
 import "../../../Backend/src/loadEnv.js";
 import { initDatabase, getPool } from "../db.js";
+import { hashPassword } from "../utils/password.js";
 
 async function seed() {
   await initDatabase();
@@ -59,9 +60,10 @@ async function seed() {
         console.log("Club exists:", c.club_name);
         continue;
       }
+      const hashed = await hashPassword(c.club_password);
       const [result] = await pool.query(
         "INSERT INTO clubs (club_name, club_email, club_password, club_description) VALUES (?, ?, ?, ?)",
-        [c.club_name, c.club_email, c.club_password, c.club_description]
+        [c.club_name, c.club_email, hashed, c.club_description]
       );
       clubMap[c.club_name] = result.insertId;
       console.log("Inserted club:", c.club_name, "id=", result.insertId);

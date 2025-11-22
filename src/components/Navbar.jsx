@@ -30,6 +30,8 @@ const IsLoggedinNav = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  const navigate = useNavigate();
+
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
@@ -44,7 +46,7 @@ const IsLoggedinNav = () => {
   }, []);
 
   const handleDashboard = () => {
-    window.location.href = "/dashboard"; // Change to your dashboard route
+    navigate("/admin");
   };
 
   const name = localStorage.getItem("name") || "U";
@@ -125,12 +127,21 @@ const Navbar = () => {
           >
             About
           </Link>
+          {localStorage.getItem("token") &&
+            (localStorage.getItem("role") === "superadmin" ||
+              localStorage.getItem("role") === "club") && (
+              <Link
+                to="/admin"
+                className="hover:text-zinc-900 dark:hover:text-zinc-100"
+              >
+                Dashboard
+              </Link>
+            )}
         </nav>
 
-        {!localStorage.getItem("token") &&
-        !localStorage.getItem("admin_token") ? (
+        {!localStorage.getItem("token") ? (
           <SubNavbar />
-        ) : localStorage.getItem("admin_token") ? (
+        ) : localStorage.getItem("role") === "superadmin" ? (
           <IsAdmin />
         ) : (
           <IsLoggedinNav />

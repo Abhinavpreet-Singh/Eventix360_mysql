@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getPool } from "../db.js";
+import { hashPassword } from "../utils/password.js";
 
 const router = Router();
 
@@ -25,9 +26,10 @@ router.post("/", async (req, res) => {
   }
   try {
     const pool = getPool();
+    const hashed = await hashPassword(club_password);
     const [result] = await pool.query(
       "INSERT INTO clubs (club_name, club_email, club_password, club_description) VALUES (?, ?, ?, ?)",
-      [club_name, club_email, club_password, club_description || null]
+      [club_name, club_email, hashed, club_description || null]
     );
     return res
       .status(201)

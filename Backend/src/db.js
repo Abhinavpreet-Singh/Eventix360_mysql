@@ -3,6 +3,7 @@
 import "./loadEnv.js";
 
 import mysql from "mysql2/promise";
+import { hashPassword } from "./utils/password.js";
 
 const {
   MYSQL_HOST = "localhost",
@@ -53,8 +54,9 @@ export async function initDatabase() {
             name VARCHAR(100) NOT NULL,
             email VARCHAR(255) NOT NULL UNIQUE,
             password_hash VARCHAR(255) NOT NULL,
+            role VARCHAR(30) NOT NULL DEFAULT 'user',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
   await pool.query(`
@@ -76,14 +78,35 @@ export async function initDatabase() {
   // Create clubs table (new schema compatibility)
   await pool.query(`
         CREATE TABLE IF NOT EXISTS clubs (
-            club_id INT AUTO_INCREMENT PRIMARY KEY,
-            club_name VARCHAR(100) UNIQUE NOT NULL,
-            club_email VARCHAR(120) UNIQUE NOT NULL,
-            club_password VARCHAR(255) NOT NULL,
-            club_description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                club_id INT AUTO_INCREMENT PRIMARY KEY,
+                club_name VARCHAR(100) UNIQUE NOT NULL,
+                club_email VARCHAR(120) UNIQUE NOT NULL,
+                club_password VARCHAR(255) NOT NULL,
+                club_description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
+
+  // Ensure club passwords are hashed (hash any non-bcrypt passwords)
+  try {
+    const [clubRows] = await pool.query(
+      "SELECT club_id, club_password FROM clubs"
+    );
+    for (const c of clubRows) {
+      const pw = c.club_password || "";
+      if (pw && !pw.startsWith("$2")) {
+        const hashed = await hashPassword(pw);
+        await pool.query(
+          "UPDATE clubs SET club_password = ? WHERE club_id = ?",
+          [hashed, c.club_id]
+        );
+        console.log("Hashed club password for club_id=", c.club_id);
+      }
+    }
+  } catch (err) {
+    // If clubs table empty or permission issue, ignore
+    console.log("Club password hashing check skipped or failed:", err.message);
+  }
 
   // Create event_details table (holds long-form event fields)
   await pool.query(`
@@ -162,6 +185,14 @@ export async function initDatabase() {
 
   // Add new columns for the updated form fields
   try {
+    // Ensure role column exists on users table (backwards compat)
+    const [roleCols] = await pool.query("SHOW COLUMNS FROM users LIKE 'role'");
+    if (roleCols.length === 0) {
+      await pool.query(
+        `ALTER TABLE users ADD COLUMN role VARCHAR(30) NOT NULL DEFAULT 'user'`
+      );
+      console.log("Added role column to users table");
+    }
     // Add event_title column
     const [eventTitleColumns] = await pool.query(
       "SHOW COLUMNS FROM events LIKE 'event_title'"
@@ -227,6 +258,60 @@ export async function initDatabase() {
     }
   } catch (error) {
     console.log("Error adding new columns:", error.message);
+  }
+
+  // Create or update super admin from environment variables if provided
+  try {
+    const SUPER_EMAIL = process.env.SUPER_ADMIN_EMAIL;
+    const SUPER_PW = process.env.SUPER_ADMIN_PASSWORD;
+    const SUPER_NAME = process.env.SUPER_ADMIN_NAME || "superadmin";
+    if (SUPER_EMAIL && SUPER_PW) {
+      // Hash password
+      const pwHash = await hashPassword(SUPER_PW);
+      // Check existing user
+      const [existing] = await pool.query(
+        "SELECT id FROM users WHERE email = ? LIMIT 1",
+        [SUPER_EMAIL]
+      );
+      if (Array.isArray(existing) && existing.length > 0) {
+        await pool.query(
+          "UPDATE users SET password_hash = ?, role = ? WHERE id = ?",
+          [pwHash, "superadmin", existing[0].id]
+        );
+        console.log("Updated super admin account for", SUPER_EMAIL);
+      } else {
+        await pool.query(
+          "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+          [SUPER_NAME, SUPER_EMAIL, pwHash, "superadmin"]
+        );
+        console.log("Created super admin account for", SUPER_EMAIL);
+      }
+    }
+    // If no SUPER_ADMIN_* env provided, ensure there is at least one dev superadmin
+    const [existingSuper] = await pool.query(
+      "SELECT id FROM users WHERE role = 'superadmin' LIMIT 1"
+    );
+    if (
+      (!SUPER_EMAIL || !SUPER_PW) &&
+      Array.isArray(existingSuper) &&
+      existingSuper.length === 0
+    ) {
+      try {
+        const devEmail = "admin@gmail.com";
+        const devPw = "admin@123";
+        const devName = "Admin";
+        const pwHash = await hashPassword(devPw);
+        await pool.query(
+          "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+          [devName, devEmail, pwHash, "superadmin"]
+        );
+        console.log("Created default dev superadmin:", devEmail);
+      } catch (err) {
+        console.log("Failed to create default dev superadmin:", err.message);
+      }
+    }
+  } catch (err) {
+    console.log("Super admin creation skipped or failed:", err.message);
   }
 
   // Remove legacy columns (description, club_name, date, time)
