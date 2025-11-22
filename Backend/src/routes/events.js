@@ -14,9 +14,14 @@ const eventSchema = z.object({
   // New fields - REQUIRED
   event_title: z.string().min(1, "Event title is required"),
   event_date: z.string().min(1, "Event date is required"),
-  club_id: z.string().min(1, "Club ID is required"),
+  club_id: z
+    .union([z.string().min(1), z.number().int().positive()])
+    .refine(Boolean, "Club ID is required"),
   event_location: z.string().min(1, "Event location is required"),
-  category_id: z.string().min(1, "Category ID is required"),
+  category_id: z
+    .union([z.string().min(1), z.number().int().positive()])
+    .refine(Boolean, "Category ID is required"),
+  // allow numeric ids as well
   // Event details
   event_description: z.string().optional().or(z.literal("")),
   brochure_url: z.string().optional().or(z.literal("")),
@@ -92,6 +97,16 @@ router.post("/", authMiddleware, async (req, res) => {
       .slice(0, 19)
       .replace("T", " ");
 
+    // Ensure category_id is numeric (store only id in events table)
+    if (typeof category_id === "string") {
+      category_id = category_id.trim();
+    }
+    const catIdNum = parseInt(category_id, 10);
+    if (Number.isNaN(catIdNum) || catIdNum <= 0) {
+      return res.status(400).json({ error: "Invalid category_id" });
+    }
+    category_id = catIdNum;
+
     const [result] = await pool.query(
       `INSERT INTO events (
                 public_id, 
@@ -132,18 +147,65 @@ router.post("/", authMiddleware, async (req, res) => {
       console.warn("Could not insert event_details:", err.message);
     }
 
-    // Fetch the created event to return it
-    const [rows] = await pool.query("SELECT * FROM events WHERE id = ?", [
-      eventId,
-    ]);
+    // Insert into event_cards table
+    try {
+      const eventDateOnly = formattedEventDate.split(" ")[0]; // Extract DATE portion
+      await pool.query(
+        `INSERT INTO event_cards (event_id, event_title, event_date, event_location, image_url, event_description, brochure_url, event_schedule, terms, club_id, category_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          eventId,
+          event_title,
+          eventDateOnly,
+          event_location,
+          image_url || null,
+          event_description || null,
+          brochure_url || null,
+          event_schedule || null,
+          terms || null,
+          club_id,
+          category_id,
+        ]
+      );
+    } catch (err) {
+      console.warn("Could not insert event_card:", err.message);
+    }
+
+    // Fetch the created event (with joined details and category) to return it
+    const [rows] = await pool.query(
+      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name, cat.category_name AS category_name
+       FROM events e
+       LEFT JOIN event_details d ON e.id = d.event_id
+       LEFT JOIN clubs c ON e.club_id = c.club_id
+       LEFT JOIN categories cat ON e.category_id = cat.category_id
+       WHERE e.id = ? LIMIT 1`,
+      [eventId]
+    );
     const event = rows[0];
 
-    return res.status(201).json({
-      message: "Event created successfully",
-      event,
-    });
+    return res
+      .status(201)
+      .json({ message: "Event created successfully", event });
   } catch (error) {
     console.error("Create event error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get all events with event_cards data (optimized for frontend display)
+router.get("/cards/all", async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT ec.*, c.club_name, cat.category_name 
+       FROM event_cards ec
+       LEFT JOIN clubs c ON ec.club_id = c.club_id
+       LEFT JOIN categories cat ON ec.category_id = cat.category_id
+       ORDER BY ec.event_date ASC`
+    );
+    return res.json({ eventCards: rows });
+  } catch (error) {
+    console.error("Get event cards error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -153,10 +215,11 @@ router.get("/", async (req, res) => {
   try {
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
+      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name, cat.category_name AS category_name
        FROM events e
        LEFT JOIN event_details d ON e.id = d.event_id
        LEFT JOIN clubs c ON e.club_id = c.club_id
+       LEFT JOIN categories cat ON e.category_id = cat.category_id
        ORDER BY e.event_date ASC`
     );
 
@@ -175,10 +238,11 @@ router.get("/mine", authMiddleware, async (req, res) => {
     if (role === "club") {
       const clubId = req.user.clubId || req.user.club_id || req.user.clubId;
       const [rows] = await pool.query(
-        `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
+        `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name, cat.category_name AS category_name
          FROM events e
          LEFT JOIN event_details d ON e.id = d.event_id
          LEFT JOIN clubs c ON e.club_id = c.club_id
+         LEFT JOIN categories cat ON e.category_id = cat.category_id
          WHERE e.club_id = ?
          ORDER BY e.event_date ASC`,
         [String(clubId)]
@@ -188,10 +252,11 @@ router.get("/mine", authMiddleware, async (req, res) => {
 
     // superadmin or other roles with access -> return all
     const [rows] = await pool.query(
-      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
+      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name, cat.category_name AS category_name
        FROM events e
        LEFT JOIN event_details d ON e.id = d.event_id
        LEFT JOIN clubs c ON e.club_id = c.club_id
+       LEFT JOIN categories cat ON e.category_id = cat.category_id
        ORDER BY e.event_date ASC`
     );
     return res.json({ events: rows });
@@ -212,10 +277,11 @@ router.get("/:id", async (req, res) => {
   try {
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
+      `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name, cat.category_name AS category_name
        FROM events e
        LEFT JOIN event_details d ON e.id = d.event_id
        LEFT JOIN clubs c ON e.club_id = c.club_id
+       LEFT JOIN categories cat ON e.category_id = cat.category_id
        WHERE e.id = ? LIMIT 1`,
       [id]
     );
@@ -261,6 +327,8 @@ router.put("/:id", authMiddleware, async (req, res) => {
     event_schedule,
     terms,
   } = parseResult.data;
+
+  // For updates we should also coerce category_id where applicable (handled later in code)
 
   try {
     const pool = getPool();
@@ -351,6 +419,53 @@ router.put("/:id", authMiddleware, async (req, res) => {
       console.warn("Could not upsert event_details:", err.message);
     }
 
+    // Update event_cards table
+    try {
+      const eventDateOnly = formattedEventDate.split(" ")[0]; // Extract DATE portion
+      const [cardExists] = await pool.query(
+        "SELECT event_card_id FROM event_cards WHERE event_id = ? LIMIT 1",
+        [id]
+      );
+      if (Array.isArray(cardExists) && cardExists.length > 0) {
+        await pool.query(
+          `UPDATE event_cards SET event_title = ?, event_date = ?, event_location = ?, image_url = ?, event_description = ?, brochure_url = ?, event_schedule = ?, terms = ?, club_id = ?, category_id = ? WHERE event_id = ?`,
+          [
+            event_title,
+            eventDateOnly,
+            event_location,
+            image_url || null,
+            event_description || null,
+            brochure_url || null,
+            event_schedule || null,
+            terms || null,
+            club_id,
+            category_id,
+            id,
+          ]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO event_cards (event_id, event_title, event_date, event_location, image_url, event_description, brochure_url, event_schedule, terms, club_id, category_id) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            event_title,
+            eventDateOnly,
+            event_location,
+            image_url || null,
+            event_description || null,
+            brochure_url || null,
+            event_schedule || null,
+            terms || null,
+            club_id,
+            category_id,
+          ]
+        );
+      }
+    } catch (err) {
+      console.warn("Could not upsert event_card:", err.message);
+    }
+
     // Return joined event with details
     const [rows] = await pool.query(
       `SELECT e.*, d.event_description, d.brochure_url, d.event_schedule, d.terms, c.club_name
@@ -405,7 +520,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       return res.status(403).json({ error: "Forbidden: cannot delete events" });
     }
 
-    // Delete the event
+    // Delete the event (cascades to event_cards and event_details via FK)
     await pool.query("DELETE FROM events WHERE id = ?", [id]);
 
     return res.json({

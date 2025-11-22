@@ -26,7 +26,7 @@ router.post("/signup", async (req, res) => {
     const pool = getPool();
 
     const [existing] = await pool.query(
-      "SELECT id FROM users WHERE email = ? LIMIT 1",
+      "SELECT user_id FROM users WHERE user_email = ? LIMIT 1",
       [email]
     );
     if (Array.isArray(existing) && existing.length > 0) {
@@ -35,8 +35,8 @@ router.post("/signup", async (req, res) => {
 
     const passwordHash = await hashPassword(password);
     const [result] = await pool.query(
-      "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
-      [name, email, passwordHash]
+      "INSERT INTO users (user_name, user_email, user_password, user_phone, department, year_of_study) VALUES (?, ?, ?, ?, ?, ?)",
+      [name, email, passwordHash, "0000000000", null, 1]
     );
 
     const userId = result.insertId;
@@ -102,9 +102,39 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // Check if this is a superadmin stored in super_admins table
+    const [saRows] = await pool.query(
+      "SELECT admin_id, admin_name, admin_email, admin_password FROM super_admins WHERE admin_email = ? LIMIT 1",
+      [email]
+    );
+    const superAdmin =
+      Array.isArray(saRows) && saRows.length > 0 ? saRows[0] : null;
+    if (superAdmin) {
+      const matchSuper = await verifyPassword(
+        password,
+        superAdmin.admin_password
+      );
+      if (!matchSuper) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+      const token = signToken({
+        superAdminId: superAdmin.admin_id,
+        email: superAdmin.admin_email,
+        role: "superadmin",
+      });
+      return res.json({
+        superadmin: {
+          id: superAdmin.admin_id,
+          name: superAdmin.admin_name,
+          email: superAdmin.admin_email,
+        },
+        token,
+      });
+    }
+
     // Default: authenticate as user
     const [rows] = await pool.query(
-      "SELECT id, name, email, password_hash, role FROM users WHERE email = ? LIMIT 1",
+      "SELECT user_id AS id, user_name AS name, user_email AS email, user_password FROM users WHERE user_email = ? LIMIT 1",
       [email]
     );
     const user = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
@@ -112,7 +142,10 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const match = await verifyPassword(password, user.password_hash);
+    const match = await verifyPassword(
+      password,
+      user.user_password || user.password || user.password_hash
+    );
     if (!match) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
@@ -120,14 +153,14 @@ router.post("/login", async (req, res) => {
     const token = signToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: "user",
     });
     return res.json({
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        role: "user",
       },
       token,
     });
@@ -153,9 +186,23 @@ router.get("/me", authMiddleware, async (req, res) => {
       return res.json({ club });
     }
 
+    // If token belongs to a superadmin, return from super_admins
+    if (req.user?.role === "superadmin") {
+      const superAdminId = req.user.superAdminId;
+      if (!superAdminId)
+        return res.status(400).json({ error: "Invalid token" });
+      const [rowsSa] = await pool.query(
+        "SELECT admin_id AS id, admin_name AS name, admin_email AS email, created_at FROM super_admins WHERE admin_id = ? LIMIT 1",
+        [superAdminId]
+      );
+      const sa = Array.isArray(rowsSa) && rowsSa.length > 0 ? rowsSa[0] : null;
+      if (!sa) return res.status(404).json({ error: "Superadmin not found" });
+      return res.json({ user: sa });
+    }
+
     // Default: user
     const [rows] = await pool.query(
-      "SELECT id, name, email, created_at, role FROM users WHERE id = ? LIMIT 1",
+      "SELECT user_id AS id, user_name AS name, user_email AS email, created_at FROM users WHERE user_id = ? LIMIT 1",
       [req.user.userId]
     );
     const user = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;

@@ -8,6 +8,7 @@ const apiBase = ""; // relative path (vite proxy)
 const Dashboard = () => {
   const [events, setEvents] = useState([]);
   const [clubs, setClubs] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     event_title: "",
     event_date: "",
@@ -33,7 +34,7 @@ const Dashboard = () => {
 
   async function loadAll() {
     setLoading(true);
-    await Promise.all([fetchEvents(), fetchClubs()]);
+    await Promise.all([fetchEvents(), fetchClubs(), fetchCategories()]);
     setLoading(false);
   }
 
@@ -214,6 +215,18 @@ const Dashboard = () => {
     }
   }
 
+  async function fetchCategories() {
+    try {
+      const res = await fetch(`/api/categories`);
+      if (!res.ok) throw new Error("Failed to fetch categories");
+      const data = await res.json();
+      setCategories(data.categories || []);
+    } catch (err) {
+      console.error("Could not load categories:", err);
+      setCategories([]);
+    }
+  }
+
   const handleDelete = async (id) => {
     if (!confirm("Delete this event?")) return;
     try {
@@ -314,15 +327,20 @@ const Dashboard = () => {
                   type="url"
                   maxLength={255}
                 />
-                <input
+                <select
                   name="category_id"
                   value={form.category_id}
                   onChange={handleChange}
-                  placeholder="Category ID"
                   required
-                  maxLength={50}
                   className="px-3 py-2 rounded-md border"
-                />
+                >
+                  <option value="">Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.category_id} value={c.category_id}>
+                      {c.category_name}
+                    </option>
+                  ))}
+                </select>
                 <input
                   name="brochure_url"
                   value={form.brochure_url}
@@ -406,6 +424,7 @@ const Dashboard = () => {
                           </h5>
                           <p className="text-sm text-slate-500">
                             {ev.club_name ? `${ev.club_name} • ` : ""}
+                            {ev.category_name ? `${ev.category_name} • ` : ""}
                             {new Date(ev.event_date).toLocaleString()}
                           </p>
                         </div>

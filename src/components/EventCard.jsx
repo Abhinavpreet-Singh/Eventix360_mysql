@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 
 const EventCard = ({ event }) => {
   const date = event.event_date ? new Date(event.event_date) : null;
+  const eventId = event.id || event.event_id || event.public_id;
+
   return (
     <div className="group flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
       {event.image_url && (
@@ -28,10 +30,10 @@ const EventCard = ({ event }) => {
         </p>
         <div className="mt-4 flex items-center justify-between">
           <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
-            {event.category_id || "General"}
+            {event.category_name || event.category_id || "General"}
           </span>
           <Link
-            to={`/events/${event.id}`}
+            to={`/events/${eventId}`}
             className="text-sm font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
           >
             View

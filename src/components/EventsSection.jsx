@@ -8,10 +8,17 @@ const EventsSection = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await axios.get("/api/events");
-        setEvents(res.data.events || []);
+        const res = await axios.get("/api/events/cards/all");
+        setEvents(res.data.eventCards || []);
       } catch (error) {
         console.error("Error fetching events:", error);
+        // Fallback to regular events endpoint
+        try {
+          const fallbackRes = await axios.get("/api/events");
+          setEvents(fallbackRes.data.events || []);
+        } catch (fallbackError) {
+          console.error("Error fetching events (fallback):", fallbackError);
+        }
       }
     };
     fetchEvents();

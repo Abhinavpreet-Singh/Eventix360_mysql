@@ -27,7 +27,8 @@ const Login = () => {
 
       // store token
       localStorage.setItem("token", res.data.token);
-      const userOrClub = res.data.user || res.data.club;
+      // handle user / club / superadmin responses
+      const userOrClub = res.data.user || res.data.club || res.data.superadmin;
       if (userOrClub?.name) localStorage.setItem("name", userOrClub.name);
       if (res.data.user) {
         localStorage.setItem("userId", String(res.data.user.id));
@@ -35,10 +36,17 @@ const Login = () => {
       if (res.data.club) {
         localStorage.setItem("clubId", String(res.data.club.id));
       }
+      if (res.data.superadmin) {
+        // store admin id under userId for compatibility and set role
+        localStorage.setItem("userId", String(res.data.superadmin.id));
+      }
 
-      // navigate based on role if provided
-      const role =
-        res.data.user?.role || (loginType === "club" ? "club" : undefined);
+      // determine role and navigate
+      let role = undefined;
+      if (res.data.superadmin) role = "superadmin";
+      else if (res.data.user) role = res.data.user.role || "user";
+      else if (res.data.club) role = "club";
+
       if (role) localStorage.setItem("role", role);
       if (role === "superadmin") {
         navigate("/admin");
