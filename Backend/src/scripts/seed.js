@@ -1,3 +1,5 @@
+/* eslint-env node */
+/* global process */
 import "../../../Backend/src/loadEnv.js";
 import { initDatabase, getPool } from "../db.js";
 
@@ -74,8 +76,7 @@ async function seed() {
       event_title: "Campus Hackathon 2025",
       event_date: "2025-12-05T09:00:00",
       event_location: "Main Auditorium",
-      image_url:
-        "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/hackathon/800/450",
       club_name: "CodeHub",
       category_id: "Tech",
       event_description:
@@ -88,8 +89,7 @@ async function seed() {
       event_title: "UI/UX Design Sprint",
       event_date: "2025-11-28T10:00:00",
       event_location: "Design Lab",
-      image_url:
-        "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/designsprint/800/450",
       club_name: "DesignStudio",
       category_id: "Tech",
       event_description:
@@ -102,8 +102,7 @@ async function seed() {
       event_title: "Robotics Workshop: Basics to Bots",
       event_date: "2025-12-10T13:00:00",
       event_location: "Robotics Lab",
-      image_url:
-        "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/robotics/800/450",
       club_name: "RoboticsClub",
       category_id: "Tech",
       event_description:
@@ -116,8 +115,7 @@ async function seed() {
       event_title: "Open Mic Night",
       event_date: "2025-11-30T19:00:00",
       event_location: "Cafeteria Stage",
-      image_url:
-        "https://images.unsplash.com/photo-1508973371-6f7f12a3f0f7?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/openmic/800/450",
       club_name: "MusicSociety",
       category_id: "Non-Tech",
       event_description:
@@ -130,8 +128,7 @@ async function seed() {
       event_title: "Watercolor Weekend",
       event_date: "2025-12-14T10:00:00",
       event_location: "Art Studio",
-      image_url:
-        "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/watercolor/800/450",
       club_name: "ArtCircle",
       category_id: "Non-Tech",
       event_description:
@@ -145,8 +142,7 @@ async function seed() {
       event_title: "Startup Pitch Night",
       event_date: "2025-12-02T18:00:00",
       event_location: "Auditorium",
-      image_url:
-        "https://images.unsplash.com/photo-1498079022511-d15614cb1c02?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/pitchnight/800/450",
       club_name: "Entrepreneurs",
       category_id: "Non-Tech",
       event_description:
@@ -159,8 +155,7 @@ async function seed() {
       event_title: "AI & ML Seminar",
       event_date: "2025-12-08T11:00:00",
       event_location: "Lecture Hall A",
-      image_url:
-        "https://images.unsplash.com/photo-1517350696041-3d8c4f6b7f41?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/aiml/800/450",
       club_name: "CodeHub",
       category_id: "Tech",
       event_description:
@@ -173,8 +168,7 @@ async function seed() {
       event_title: "Photography Walk",
       event_date: "2025-11-29T07:30:00",
       event_location: "Campus Green",
-      image_url:
-        "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/photowalk/800/450",
       club_name: "ArtCircle",
       category_id: "Non-Tech",
       event_description:
@@ -187,8 +181,7 @@ async function seed() {
       event_title: "Entrepreneurship Workshop: MVP",
       event_date: "2025-12-11T14:00:00",
       event_location: "Seminar Room 2",
-      image_url:
-        "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/mvp/800/450",
       club_name: "Entrepreneurs",
       category_id: "Non-Tech",
       event_description:
@@ -201,8 +194,7 @@ async function seed() {
       event_title: "Beat Making Workshop",
       event_date: "2025-12-03T16:00:00",
       event_location: "Music Room",
-      image_url:
-        "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://picsum.photos/seed/beatmaking/800/450",
       club_name: "MusicSociety",
       category_id: "Non-Tech",
       event_description: "Create beats and short tracks using free tools.",

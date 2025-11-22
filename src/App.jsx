@@ -9,6 +9,7 @@ import Footer from "./components/Footer";
 import Admin from "./pages/Admin";
 import Clubs from "./pages/Clubs";
 import Events from "./pages/Events";
+import EventDetails from "./pages/EventDetails";
 import About from "./pages/About";
 
 const App = () => {
@@ -18,6 +19,7 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Hero />} />
         <Route path="/events" element={<Events />} />
+        <Route path="/events/:id" element={<EventDetails />} />
         <Route path="/about" element={<About />} />
         <Route path="/clubs" element={<Clubs />} />
         <Route path="/auth/login" element={<Login />} />

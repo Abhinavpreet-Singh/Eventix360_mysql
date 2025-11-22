@@ -1,3 +1,5 @@
+/* eslint-env node */
+/* global process */
 import "./loadEnv.js";
 
 import mysql from "mysql2/promise";
