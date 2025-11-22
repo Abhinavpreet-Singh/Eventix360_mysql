@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
+// removed unused imports (useState, useEffect, axios)
 import Hero from "./components/Hero";
 import Navbar from "./components/Navbar";
 import { Routes, Route, Navigate } from "react-router-dom";

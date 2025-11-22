@@ -8,52 +8,73 @@ async function seed() {
   await initDatabase();
   const pool = getPool();
 
-  // Clubs to create
-  const clubs = [
-    {
-      club_name: "CodeHub",
-      club_email: "codehub@college.edu",
-      club_password: "codehub123",
-      club_description: "Coding club for developers and hackathon lovers.",
-    },
-    {
-      club_name: "DesignStudio",
-      club_email: "design@college.edu",
-      club_password: "design123",
-      club_description: "UI/UX and product design enthusiasts.",
-    },
-    {
-      club_name: "RoboticsClub",
-      club_email: "robotics@college.edu",
-      club_password: "robotics123",
-      club_description: "Robotics projects and competitions.",
-    },
-    {
-      club_name: "ArtCircle",
-      club_email: "art@college.edu",
-      club_password: "art123",
-      club_description: "Creative arts, painting and exhibitions.",
-    },
-    {
-      club_name: "Entrepreneurs",
-      club_email: "entre@college.edu",
-      club_password: "entre123",
-      club_description: "Startup talks and business workshops.",
-    },
-    {
-      club_name: "MusicSociety",
-      club_email: "music@college.edu",
-      club_password: "music123",
-      club_description: "Performances, jams and music workshops.",
-    },
-    {
-      club_name: "DEBSOC",
-      club_email: "debsoc@chitkara.edu.in",
-      club_password: "debsoc@123",
-      club_description:
-        "Debating Society - debates, public speaking and quizzes.",
-    },
-  ];
+  // Clubs to create.
+  // If `LOAD_SEED_FROM_ENV=1` and `SEED_CLUBS` env var contains JSON array, use it
+  // Example for .env: SEED_CLUBS=[{"club_name":"DEBSOC","club_email":"debsoc@chitkara.edu.in","club_password":"debsoc@123","club_description":"Debating Society"}]
+  let clubs = [];
+  try {
+    if (process.env.LOAD_SEED_FROM_ENV === "1" && process.env.SEED_CLUBS) {
+      clubs = JSON.parse(process.env.SEED_CLUBS);
+      console.log("Using clubs from SEED_CLUBS environment variable");
+    }
+  } catch (err) {
+    console.error(
+      "Failed to parse SEED_CLUBS environment variable:",
+      err.message
+    );
+  }
+
+  // Fallback to built-in list (only used when env not provided)
+  if (!Array.isArray(clubs) || clubs.length === 0) {
+    console.warn(
+      "No SEED_CLUBS provided or empty. Falling back to built-in seed list.\nTo avoid secrets in code, set LOAD_SEED_FROM_ENV=1 and SEED_CLUBS in your .env"
+    );
+    clubs = [
+      {
+        club_name: "CodeHub",
+        club_email: "codehub@college.edu",
+        club_password: "codehub123",
+        club_description: "Coding club for developers and hackathon lovers.",
+      },
+      {
+        club_name: "DesignStudio",
+        club_email: "design@college.edu",
+        club_password: "design123",
+        club_description: "UI/UX and product design enthusiasts.",
+      },
+      {
+        club_name: "RoboticsClub",
+        club_email: "robotics@college.edu",
+        club_password: "robotics123",
+        club_description: "Robotics projects and competitions.",
+      },
+      {
+        club_name: "ArtCircle",
+        club_email: "art@college.edu",
+        club_password: "art123",
+        club_description: "Creative arts, painting and exhibitions.",
+      },
+      {
+        club_name: "Entrepreneurs",
+        club_email: "entre@college.edu",
+        club_password: "entre123",
+        club_description: "Startup talks and business workshops.",
+      },
+      {
+        club_name: "MusicSociety",
+        club_email: "music@college.edu",
+        club_password: "music123",
+        club_description: "Performances, jams and music workshops.",
+      },
+      {
+        club_name: "DEBSOC",
+        club_email: "debsoc@chitkara.edu.in",
+        club_password: "debsoc@123",
+        club_description:
+          "Debating Society - debates, public speaking and quizzes.",
+      },
+    ];
+  }
 
   const clubMap = {};
   for (const c of clubs) {
@@ -77,6 +98,12 @@ async function seed() {
     } catch (err) {
       console.error("Error inserting club", c.club_name, err.message);
     }
+  }
+
+  // After inserting clubs, print a summary table (name -> id, email)
+  console.log("\nSeeded clubs summary:");
+  for (const name of Object.keys(clubMap)) {
+    console.log(` - ${name}: id=${clubMap[name]}`);
   }
 
   // Events to create (tech + non-tech)
@@ -228,6 +255,59 @@ async function seed() {
 
       const eventDate = new Date(ev.event_date);
       const formatted = eventDate.toISOString().slice(0, 19).replace("T", " ");
+
+      // Check for duplicate event: same title, same date (day), same club
+      try {
+        const [dup] = await pool.query(
+          "SELECT id FROM events WHERE event_title = ? AND DATE(event_date) = DATE(?) AND club_id = ? LIMIT 1",
+          [ev.event_title, formatted, String(clubId)]
+        );
+        if (Array.isArray(dup) && dup.length > 0) {
+          const existingId = dup[0].id;
+          console.log(
+            "Skipping duplicate event (already exists):",
+            ev.event_title,
+            "id=",
+            existingId
+          );
+          // ensure event_details exist/updated
+          try {
+            const [ed] = await pool.query(
+              "SELECT event_id FROM event_details WHERE event_id = ? LIMIT 1",
+              [existingId]
+            );
+            if (!Array.isArray(ed) || ed.length === 0) {
+              await pool.query(
+                `INSERT INTO event_details (event_id, event_description, brochure_url, event_schedule, terms) VALUES (?, ?, ?, ?, ?)`,
+                [
+                  existingId,
+                  ev.event_description || null,
+                  ev.brochure_url || null,
+                  ev.event_schedule || null,
+                  ev.terms || null,
+                ]
+              );
+              console.log(
+                "Added event_details for existing event id=",
+                existingId
+              );
+            }
+          } catch (err) {
+            console.warn(
+              "Could not ensure event_details for",
+              ev.event_title,
+              err.message
+            );
+          }
+          continue;
+        }
+      } catch (err) {
+        console.warn(
+          "Duplicate check failed for event",
+          ev.event_title,
+          err.message
+        );
+      }
 
       const [resInsert] = await pool.query(
         `INSERT INTO events (public_id, title, image_url, event_title, event_date, club_id, event_location, category_id) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?)`,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { Link } from "react-router-dom";
+import Loader from "./Loader";
 
 const apiBase = ""; // relative path (vite proxy)
 
@@ -61,8 +62,53 @@ const Dashboard = () => {
       return;
     }
 
+    // Client-side validation consistent with DB schema
+    const trimmedTitle = (form.event_title || "").trim();
+    if (!trimmedTitle)
+      return toast.error("Event title is required", { theme: "dark" });
+    if (trimmedTitle.length > 100)
+      return toast.error("Event title must be 100 chars or less", {
+        theme: "dark",
+      });
+    if (!form.event_date)
+      return toast.error("Event date is required", { theme: "dark" });
+    if (!form.event_location)
+      return toast.error("Event location is required", { theme: "dark" });
+    if ((form.event_location || "").length > 100)
+      return toast.error("Location must be 100 chars or less", {
+        theme: "dark",
+      });
+    if (!form.category_id)
+      return toast.error("Category is required", { theme: "dark" });
+    if (form.image_url && form.image_url.length > 255)
+      return toast.error("Image URL too long", { theme: "dark" });
+
+    // Prevent creating exact duplicates client-side (title + date (day) + club)
+    const clubIdToCheck =
+      role === "club" ? localStorage.getItem("clubId") : form.club_id;
+    const isDuplicate = events.some((ev) => {
+      const evDate = ev.event_date
+        ? new Date(ev.event_date).toISOString().slice(0, 10)
+        : "";
+      const formDate = form.event_date
+        ? new Date(form.event_date).toISOString().slice(0, 10)
+        : "";
+      return (
+        ev.event_title &&
+        ev.event_title.trim().toLowerCase() === trimmedTitle.toLowerCase() &&
+        evDate === formDate &&
+        String(ev.club_id) === String(clubIdToCheck)
+      );
+    });
+    if (!editingId && isDuplicate) {
+      return toast.error(
+        "An event with the same title and date already exists for this club",
+        { theme: "dark" }
+      );
+    }
+
     const eventData = {
-      event_title: form.event_title,
+      event_title: trimmedTitle,
       event_date: form.event_date,
       club_id: form.club_id,
       event_location: form.event_location,
@@ -229,6 +275,7 @@ const Dashboard = () => {
                   onChange={handleChange}
                   placeholder="Event Title"
                   required
+                  maxLength={100}
                   className="px-3 py-2 rounded-md border"
                 />
                 <input
@@ -245,6 +292,8 @@ const Dashboard = () => {
                   onChange={handleChange}
                   placeholder="Club ID"
                   className="px-3 py-2 rounded-md border"
+                  type="number"
+                  min={1}
                   disabled={role === "club"}
                 />
                 <input
@@ -253,6 +302,7 @@ const Dashboard = () => {
                   onChange={handleChange}
                   placeholder="Location"
                   required
+                  maxLength={100}
                   className="px-3 py-2 rounded-md border"
                 />
                 <input
@@ -261,6 +311,8 @@ const Dashboard = () => {
                   onChange={handleChange}
                   placeholder="Image URL"
                   className="px-3 py-2 rounded-md border md:col-span-2"
+                  type="url"
+                  maxLength={255}
                 />
                 <input
                   name="category_id"
@@ -268,6 +320,7 @@ const Dashboard = () => {
                   onChange={handleChange}
                   placeholder="Category ID"
                   required
+                  maxLength={50}
                   className="px-3 py-2 rounded-md border"
                 />
                 <input
@@ -276,6 +329,8 @@ const Dashboard = () => {
                   onChange={handleChange}
                   placeholder="Brochure URL"
                   className="px-3 py-2 rounded-md border"
+                  type="url"
+                  maxLength={255}
                 />
                 <textarea
                   name="event_description"
@@ -323,7 +378,9 @@ const Dashboard = () => {
             </div>
             <h4 className="text-lg font-semibold mb-3">Recent Events</h4>
             {loading ? (
-              <p>Loading events...</p>
+              <div className="flex items-center justify-center py-8">
+                <Loader size={36} />
+              </div>
             ) : events.length === 0 ? (
               <p className="text-sm text-slate-500">No events found.</p>
             ) : (

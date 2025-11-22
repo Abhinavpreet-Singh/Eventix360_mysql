@@ -87,6 +87,17 @@ export async function initDatabase() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+  // Create super_admins table (schema-compatible with eventix.sql)
+  await pool.query(`
+        CREATE TABLE IF NOT EXISTS super_admins (
+            admin_id INT PRIMARY KEY AUTO_INCREMENT,
+            admin_name VARCHAR(100) NOT NULL,
+            admin_email VARCHAR(120) UNIQUE NOT NULL,
+            admin_password VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
   // Ensure club passwords are hashed (hash any non-bcrypt passwords)
   try {
     const [clubRows] = await pool.query(
@@ -119,6 +130,78 @@ export async function initDatabase() {
             FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
+
+  // Create categories table
+  await pool.query(`
+          CREATE TABLE IF NOT EXISTS categories (
+            category_id INT PRIMARY KEY AUTO_INCREMENT,
+            category_name VARCHAR(100) UNIQUE NOT NULL,
+            category_description TEXT
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+
+  // Create registrations table
+  await pool.query(`
+          CREATE TABLE IF NOT EXISTS registrations (
+            registration_id INT PRIMARY KEY AUTO_INCREMENT,
+            event_id INT NOT NULL,
+            user_id INT NOT NULL,
+            registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            confirmation_code CHAR(36) DEFAULT (UUID()) UNIQUE,
+            FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+
+  // Create feedbacks table
+  await pool.query(`
+          CREATE TABLE IF NOT EXISTS feedbacks (
+            feedback_id INT PRIMARY KEY AUTO_INCREMENT,
+            event_id INT NOT NULL,
+            user_id INT NOT NULL,
+            rating TINYINT NOT NULL,
+            comments TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+
+  // Create payments table
+  await pool.query(`
+          CREATE TABLE IF NOT EXISTS payments (
+            payment_id INT PRIMARY KEY AUTO_INCREMENT,
+            registration_id INT NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            payment_status ENUM('SUCCESS', 'FAILED', 'PENDING') NOT NULL,
+            payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (registration_id) REFERENCES registrations(registration_id) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+
+  // Create event_logs table
+  await pool.query(`
+          CREATE TABLE IF NOT EXISTS event_logs (
+            log_id INT PRIMARY KEY AUTO_INCREMENT,
+            action_type VARCHAR(50),
+            description TEXT,
+            action_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+
+  // Create event_cards table for compatibility (if not present)
+  await pool.query(`
+          CREATE TABLE IF NOT EXISTS event_cards (
+            event_id INT PRIMARY KEY AUTO_INCREMENT,
+            event_title VARCHAR(100) NOT NULL,
+            event_date DATE NOT NULL,
+            event_location VARCHAR(100) NOT NULL,
+            image_url VARCHAR(255),
+            club_id INT NOT NULL,
+            category_id INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
 
   // Ensure public_id exists on older databases and backfill missing values
   try {
@@ -279,12 +362,47 @@ export async function initDatabase() {
           [pwHash, "superadmin", existing[0].id]
         );
         console.log("Updated super admin account for", SUPER_EMAIL);
+        // Mirror into super_admins table for schema compatibility
+        try {
+          const [sa] = await pool.query(
+            "SELECT admin_id FROM super_admins WHERE admin_email = ? LIMIT 1",
+            [SUPER_EMAIL]
+          );
+          if (Array.isArray(sa) && sa.length > 0) {
+            await pool.query(
+              "UPDATE super_admins SET admin_name = ?, admin_password = ? WHERE admin_id = ?",
+              [SUPER_NAME, pwHash, sa[0].admin_id]
+            );
+          } else {
+            await pool.query(
+              "INSERT INTO super_admins (admin_name, admin_email, admin_password) VALUES (?, ?, ?)",
+              [SUPER_NAME, SUPER_EMAIL, pwHash]
+            );
+          }
+        } catch (err) {
+          console.log(
+            "Warning: could not update super_admins table:",
+            err.message
+          );
+        }
       } else {
         await pool.query(
           "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
           [SUPER_NAME, SUPER_EMAIL, pwHash, "superadmin"]
         );
         console.log("Created super admin account for", SUPER_EMAIL);
+        // Also add to super_admins table
+        try {
+          await pool.query(
+            "INSERT INTO super_admins (admin_name, admin_email, admin_password) VALUES (?, ?, ?)",
+            [SUPER_NAME, SUPER_EMAIL, pwHash]
+          );
+        } catch (err) {
+          console.log(
+            "Warning: could not insert into super_admins table:",
+            err.message
+          );
+        }
       }
     }
     // If no SUPER_ADMIN_* env provided, ensure there is at least one dev superadmin
@@ -306,6 +424,18 @@ export async function initDatabase() {
           [devName, devEmail, pwHash, "superadmin"]
         );
         console.log("Created default dev superadmin:", devEmail);
+        // Also insert dev entry into super_admins for compatibility
+        try {
+          await pool.query(
+            "INSERT INTO super_admins (admin_name, admin_email, admin_password) VALUES (?, ?, ?)",
+            [devName, devEmail, pwHash]
+          );
+        } catch (err) {
+          console.log(
+            "Warning: could not insert dev entry into super_admins:",
+            err.message
+          );
+        }
       } catch (err) {
         console.log("Failed to create default dev superadmin:", err.message);
       }
